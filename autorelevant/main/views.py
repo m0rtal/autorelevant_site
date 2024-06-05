@@ -5,6 +5,8 @@
 import json
 import csv
 import os
+import pandas as pd
+import aiohttp
 from django.shortcuts import render
 from django.http import HttpResponse
 from django.core.files.storage import FileSystemStorage
@@ -21,6 +23,7 @@ def dd_yandex():
         cache.set('yandex_data', result, 36000)
     return result
 
+
 def dd_google():
     result = cache.get('google_data')
     if result is None:
@@ -32,7 +35,7 @@ def dd_google():
     return result
 
 
-def upload(request):
+async def upload(request):
     if request.method == 'POST' and request.FILES['file']:
         selected_value1 = request.POST.get('dropdown1')
         selected_value2 = request.POST.get('dropdown2')
@@ -41,6 +44,42 @@ def upload(request):
             fs = FileSystemStorage()
             filename = fs.save(uploaded_file.name, uploaded_file)
             uploaded_file_url = fs.url(filename)
+
+            df = pd.read_excel('/home/jollyreap/ML/autorelevant_site/autorelevant' + uploaded_file_url)
+
+            df = df.rename({
+                'Запрос': 'search_string',
+                'URL': 'url',
+            }, axis=1)
+
+            df.loc[:, 'region'] = int(selected_value1)
+            df.loc[:, 'location'] = selected_value2
+            df = df[['url', 'search_string', 'region', 'location']]
+
+            for i in range(len(df)):
+                req = df[df.index == i]
+                ya_req = req.loc[:, req.columns != 'location']
+                google_req = req.loc[:, req.columns != 'region']
+                ya_req = dict(zip(ya_req.columns, ya_req.values[0]))
+                google_req = dict(zip(google_req.columns, google_req.values[0]))
+
+                ya_req['return_as_json'] = 1
+                google_req['domain'] = 'google.ru'
+                google_req['return_as_json'] = 1
+
+                # yandex
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url='http://0.0.0.0:5000/process-url/', params=ya_req) as response:
+                        ya_response = await response.json(encoding='utf-8')
+
+                # google
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url='http://0.0.0.0:5000/search-google/', params=google_req) as response:
+                        google_response = await response.json(encoding='utf-8')
+
+            print(ya_response)
+            print(google_response)
+
             return HttpResponse(
                 f'File uploaded successfully: <a href="{uploaded_file_url}">{uploaded_file_url}</a><br>'
                 f'Selected Value 1: {selected_value1}<br>'
