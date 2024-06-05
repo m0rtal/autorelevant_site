@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Массовая обрабока ссылок</title>
+    <title>Массовая обработка ссылок</title>
     <style>
         html, body {
             height: 100%;
@@ -38,25 +38,30 @@
 </head>
 <body>
     <div class="container">
-        <h1>Загрузите файл XLSX:</h1>
+        <h1>Загрузка XLSX файла</h1>
+        <form action="{% url 'upload' %}" method="get">
+            <input type="text" name="search1" value="{{ search_query1 }}" placeholder="Фильтровать регионы Yandex...">
+            <input type="text" name="search2" value="{{ search_query2 }}" placeholder="Фильтровать регионы Google...">
+            <button type="submit">Фильтровать регионы</button>
+        </form>
         <form action="{% url 'upload' %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}
-            <div class="call-to-action">Выберите регион поиска в Яндексе:</div>
+            <div class="call-to-action">Регион поиска в Яндекс:</div>
             <select name="dropdown1" required>
-                <option value="" disabled selected>Регион</option>
+                <option value="" disabled selected>Выберите регион поиска в Яндекс</option>
                 {% for value in dropdown1_values %}
-                    <option value="{{ value }}">{{ value }}</option>
+                    <option value="{{ value.0 }}">{{ value.0 }} - {{ value.1 }}</option>
                 {% endfor %}
             </select>
-            <div class="call-to-action">Выберите регион поиска в Google:</div>
+            <div class="call-to-action">Регион поиска в Google:</div>
             <select name="dropdown2" required>
-                <option value="" disabled selected>Регион</option>
+                <option value="" disabled selected>Выберите регион поиска в Google</option>
                 {% for value in dropdown2_values %}
                     <option value="{{ value }}">{{ value }}</option>
                 {% endfor %}
             </select>
             <input type="file" name="file" accept=".xlsx" required>
-            <button type="submit">Отправить данные на обработку</button>
+            <button type="submit">Отправить на обработку</button>
         </form>
     </div>
 </body>

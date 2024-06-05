@@ -1,12 +1,35 @@
+# https://serpapi.com/yandex/yandex-ru-geo-codes.json
+# https://xmlstock.com/geotargets-google.csv
+
+
+import json
+import csv
+import os
 from django.shortcuts import render
 from django.http import HttpResponse
 from django.core.files.storage import FileSystemStorage
+from django.core.cache import cache
 
-def get_dropdown1_values():
-    return ['Option 1', 'Option 2', 'Option 3']
 
-def get_dropdown2_values():
-    return ['Choice A', 'Choice B', 'Choice C']
+def dd_yandex():
+    result = cache.get('yandex_data')
+    if result is None:
+        file_path = os.path.join(os.path.dirname(__file__), 'sources', 'yandex-ru-geo-codes.json')
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        result = [(item['lr'], item['location']) for item in data]
+        cache.set('yandex_data', result, 36000)
+    return result
+
+def dd_google():
+    result = cache.get('google_data')
+    if result is None:
+        file_path = os.path.join(os.path.dirname(__file__), 'sources', 'geotargets-google.csv')
+        with open(file_path, 'r') as f:
+            csv_reader = csv.DictReader(f)
+            result = [row['Canonical Name'] for row in csv_reader]
+        cache.set('google_data', result, 36000)
+    return result
 
 
 def upload(request):
@@ -18,8 +41,6 @@ def upload(request):
             fs = FileSystemStorage()
             filename = fs.save(uploaded_file.name, uploaded_file)
             uploaded_file_url = fs.url(filename)
-
-
             return HttpResponse(
                 f'File uploaded successfully: <a href="{uploaded_file_url}">{uploaded_file_url}</a><br>'
                 f'Selected Value 1: {selected_value1}<br>'
@@ -28,9 +49,13 @@ def upload(request):
         else:
             return HttpResponse('Invalid file format. Please upload an XLSX file.')
 
-    dropdown1_values = get_dropdown1_values()
-    dropdown2_values = get_dropdown2_values()
+    search_query1 = request.GET.get('search1', '')
+    search_query2 = request.GET.get('search2', '')
+    dropdown1_values = [value for value in dd_yandex() if search_query1.lower() in value[1].lower()]
+    dropdown2_values = [value for value in dd_google() if search_query2.lower() in value.lower()]
     return render(request, 'upload.html', {
         'dropdown1_values': dropdown1_values,
-        'dropdown2_values': dropdown2_values
+        'dropdown2_values': dropdown2_values,
+        'search_query1': search_query1,
+        'search_query2': search_query2,
     })
