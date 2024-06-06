@@ -17,7 +17,7 @@ async def fetch_data(session, url, params):
         return json.loads(await response.json(encoding='utf-8'))
 
 
-async def process_row(sem, row, selected_value1, selected_value2):
+async def process_row(sem, row):
     async with sem:
         req = row.drop(['ID'])
         ya_req = req.drop(['location']).to_dict()
@@ -40,9 +40,9 @@ async def process_row(sem, row, selected_value1, selected_value2):
         google_decrease_qty = pd.DataFrame(google_response['уменьшить частотность'].values(), index=google_response['уменьшить частотность'].keys(), columns=['уменьшить частотность google'])
         google_urls = google_response['обработанные ссылки']
 
-        lsi = pd.concat([ya_lsi, google_lsi], axis=0).to_dict()[0]
-        increase_qty = pd.merge(ya_increase_qty, google_increase_qty, left_index=True, right_index=True, how='outer').fillna(0, axis=0)
-        decrease_qty = pd.merge(ya_decrease_qty, google_decrease_qty, left_index=True, right_index=True, how='outer').fillna(0, axis=0)
+        lsi = pd.concat([ya_lsi, google_lsi], axis=0).transpose().to_dict()[0]
+        increase_qty = pd.merge(ya_increase_qty, google_increase_qty, left_index=True, right_index=True, how='outer').fillna(0, axis=0).transpose()
+        decrease_qty = pd.merge(ya_decrease_qty, google_decrease_qty, left_index=True, right_index=True, how='outer').fillna(0, axis=0).transpose()
 
         row.loc['lsi'] = [lsi]
         row.loc['увеличить частотность yandex'] = [increase_qty.loc[:, 'увеличить частотность yandex'].to_dict()]
