@@ -9,7 +9,8 @@ from django.http import HttpResponse
 from django.core.files.storage import FileSystemStorage
 from django.core.cache import cache
 from django.conf import settings
-import pdb
+import datetime
+
 
 async def fetch_data(session, url, params):
     async with session.get(url, params=params) as response:
@@ -30,8 +31,6 @@ async def process_row(sem, row, region, location):
             ya_response = await fetch_data(session, 'http://0.0.0.0:5000/process-url/', ya_req)
             google_response = await fetch_data(session, 'http://0.0.0.0:5000/search-google/', google_req)
 
-
-
         ya_lsi = pd.DataFrame.from_dict(ya_response['lsi'])
 
 
@@ -48,7 +47,7 @@ async def process_row(sem, row, region, location):
         increase_qty = pd.merge(ya_increase_qty, google_increase_qty, left_index=True, right_index=True, how='outer').max(axis=1)
         decrease_qty = pd.merge(ya_decrease_qty, google_decrease_qty, left_index=True, right_index=True, how='outer').min(axis=1)
 
-        return {"row": row, "lsi": lsi, "increase_qty": increase_qty, "decrease_qty": decrease_qty, "ya_urls": ya_urls, "google_urls": google_urls}
+        return {"row": row, "lsi": lsi[0].to_list(), "increase_qty": increase_qty.to_dict(), "decrease_qty": decrease_qty.to_dict(), "ya_urls": ya_urls, "google_urls": google_urls}
 
 
 def load_data(file_name, key, transform_func):
@@ -91,15 +90,36 @@ async def upload(request):
             tasks = [process_row(sem, df.loc[i], selected_value1, selected_value2) for i in range(len(df))]
             results = await asyncio.gather(*tasks)
 
-            pdb.set_trace()
+            df = pd.DataFrame(results)
+            df = pd.concat([df.drop(['row'], axis=1), df['row'].apply(pd.Series)], axis=1)
+            df['lsi'] = df['lsi'].apply(lambda x: '\n'.join(x))
+            df['increase_qty'] = df['increase_qty'].apply(lambda x: '\n'.join([f'{k}: {v}' for k, v in x.items()]))
+            df['decrease_qty'] = df['decrease_qty'].apply(lambda x: '\n'.join([f'{k}: {v}' for k, v in x.items()]))
+            df['ya_urls'] = df['ya_urls'].apply(lambda x: '\n'.join([f'{k}: {v}' for k, v in x.items()]))
+            df['google_urls'] = df['google_urls'].apply(lambda x: '\n'.join([f'{k}: {v}' for k, v in x.items()]))
+            df = df.rename(columns={
+                "lsi": "LSI",
+                'search_string': 'Заголовок',
+                "url": "Обработанный URL",
+                "region": 'Регион',
+                "location": "Локация",
+                "increase_qty": "Добавить слова",
+                "decrease_qty": "Переспам от медианы",
+                "ya_urls": "Выдача Яндекса",
+                "google_urls": "Выдача Google"
+            })
+            df = df.reindex(columns=['ID', 'LSI', 'Заголовок', 'Обработанный URL', 'Регион', 'Локация', 'Добавить слова', 'Переспам от медианы', 'Выдача Яндекса', 'Выдача Google'])
 
-            output_file_path = os.path.join(settings.BASE_DIR, 'test.xlsx')
+            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            output_file_name = f'output_{timestamp}.xlsx'
+            output_file_path = os.path.join(os.path.dirname(uploaded_file_path), output_file_name)
+
             with pd.ExcelWriter(output_file_path) as writer:
                 df.to_excel(writer, sheet_name='test', index=False)
 
             return HttpResponse(
-                f'File uploaded successfully: <a href="{fs.url(filename)}">{filename}</a><br>'
-                f'Selected Value 1: {selected_value1}<br>'
+                f'<a href="{fs.url(output_file_name)}">Скачайте результат обработки</a><br>'
+                f'<a href="/">Вернуться на главную страницу</a>'
             )
         else:
             return HttpResponse('Invalid file format. Please upload an XLSX file.')
