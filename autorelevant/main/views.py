@@ -115,7 +115,7 @@ async def upload(request):
             output_file_path = os.path.join(os.path.dirname(uploaded_file_path), output_file_name)
 
             with pd.ExcelWriter(output_file_path) as writer:
-                df.to_excel(writer, sheet_name='test', index=False)
+                df.to_excel(writer, sheet_name='output', index=False)
 
             return HttpResponse(
                 f'<a href="{fs.url(output_file_name)}">Скачайте результат обработки</a><br>'
