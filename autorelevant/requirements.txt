@@ -1,4 +1,0 @@
-django
-pandas
-openpyxl
-aiohttp
